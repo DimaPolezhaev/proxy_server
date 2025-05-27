@@ -4,21 +4,31 @@ import os
 
 app = Flask(__name__)
 
-GEMINI_API_KEY = os.getenv("AIzaSyBU4Qvoc_gBsJ_EjD6OeToGl9cDrInANSg")
+# Используем переменную окружения для API-ключа
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
 @app.route("/generate", methods=["POST"])
 def generate():
     data = request.get_json()
     user_prompt = data.get("prompt")
+    image_base64 = data.get("image_base64")  # Ожидаем base64 изображение
 
-    if not user_prompt:
-        return jsonify({"error": "No prompt provided"}), 400
+    if not user_prompt or not image_base64:
+        return jsonify({"error": "Prompt or image not provided"}), 400
 
     gemini_request = {
         "contents": [
             {
-                "parts": [{"text": user_prompt}],
+                "parts": [
+                    {"text": user_prompt},
+                    {
+                        "inline_data": {
+                            "mime_type": "image/jpeg",
+                            "data": image_base64
+                        }
+                    }
+                ],
                 "role": "user"
             }
         ]
@@ -36,11 +46,16 @@ def generate():
             "response": result["candidates"][0]["content"]["parts"][0]["text"]
         })
     else:
-        return jsonify({"error": "Gemini API error", "details": response.text}), response.status_code
+        return jsonify({
+            "error": "Gemini API error",
+            "details": response.text
+        }), response.status_code
 
 @app.route("/", methods=["GET"])
 def home():
-    return "Gemini Proxy Server is running"
+    return "✅ Gemini Proxy Server is running"
 
+# Запуск для Vercel
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=False)
