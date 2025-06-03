@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 # Используем переменную окружения для API-ключа
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-exp-03-25:generateContent"
 
 @app.route("/generate", methods=["POST"])
 def generate():
