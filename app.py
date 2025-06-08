@@ -40,7 +40,6 @@ def generate():
             "maxOutputTokens": 1024,
             "stopSequences": [],
             "candidateCount": 1,
-            "enable_deep_research": True  # 👈 добавлен флаг
         },
         "safetySettings": [
             {"category": "HARM_CATEGORY_DEROGATORY", "threshold": 3},
