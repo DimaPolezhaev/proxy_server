@@ -4,7 +4,7 @@ import os
 
 app = Flask(__name__)
 
-# Используем переменную окружения для API-ключа
+# Получаем API-ключ из переменной окружения
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
@@ -12,14 +12,16 @@ GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0
 def generate():
     data = request.get_json()
     user_prompt = data.get("prompt")
-    image_base64 = data.get("image_base64")  # Ожидаем base64 изображение
+    image_base64 = data.get("image_base64")
 
     if not user_prompt or not image_base64:
         return jsonify({"error": "Prompt or image not provided"}), 400
 
+    # Формируем запрос к Gemini API
     gemini_request = {
         "contents": [
             {
+                "role": "user",
                 "parts": [
                     {"text": user_prompt},
                     {
@@ -28,9 +30,23 @@ def generate():
                             "data": image_base64
                         }
                     }
-                ],
-                "role": "user"
+                ]
             }
+        ],
+        "generationConfig": {
+            "temperature": 0.4,
+            "topK": 32,
+            "topP": 1,
+            "maxOutputTokens": 1024,
+            "stopSequences": [],
+            "candidateCount": 1,
+            "enable_deep_research": True  # 👈 добавлен флаг
+        },
+        "safetySettings": [
+            {"category": "HARM_CATEGORY_DEROGATORY", "threshold": 3},
+            {"category": "HARM_CATEGORY_VIOLENCE", "threshold": 3},
+            {"category": "HARM_CATEGORY_SEXUAL", "threshold": 3},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": 3}
         ]
     }
 
@@ -55,7 +71,7 @@ def generate():
 def home():
     return "✅ Gemini Proxy Server is running"
 
-# Запуск для Vercel
+# Запуск для локального тестирования или для Vercel
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
