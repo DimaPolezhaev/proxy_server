@@ -1,22 +1,31 @@
+# app.py
 from flask import Flask, request, jsonify
-import requests
+from flask_cors import CORS
 import os
+import requests
 
 app = Flask(__name__)
+CORS(app)  # Разрешим все CORS-запросы
 
-# Используем переменную окружения для API-ключа
+# Переменная окружения с ключом Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# URL модели Gemini
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+
+@app.route("/", methods=["GET"])
+def home():
+    return "✅ Gemini Proxy Server is running"
 
 @app.route("/generate", methods=["POST"])
 def generate():
-    data = request.get_json()
+    data = request.get_json(force=True)
     user_prompt = data.get("prompt")
-    image_base64 = data.get("image_base64")  # Ожидаем base64 изображение
+    image_base64 = data.get("image_base64")
 
     if not user_prompt or not image_base64:
         return jsonify({"error": "Prompt or image not provided"}), 400
 
+    # Формируем тело запроса к Gemini
     gemini_request = {
         "contents": [
             {
@@ -34,28 +43,21 @@ def generate():
         ]
     }
 
-    response = requests.post(
+    # Отправляем запрос к Gemini API
+    resp = requests.post(
         f"{GEMINI_URL}?key={GEMINI_API_KEY}",
         headers={"Content-Type": "application/json"},
-        json=gemini_request
+        json=gemini_request,
+        timeout=30
     )
 
-    if response.status_code == 200:
-        result = response.json()
-        return jsonify({
-            "response": result["candidates"][0]["content"]["parts"][0]["text"]
-        })
+    if resp.status_code == 200:
+        result = resp.json()
+        # Берём текст первого кандидата
+        text = result["candidates"][0]["content"]["parts"][0]["text"]
+        return jsonify({"response": text})
     else:
         return jsonify({
             "error": "Gemini API error",
-            "details": response.text
-        }), response.status_code
-
-@app.route("/", methods=["GET"])
-def home():
-    return "✅ Gemini Proxy Server is running"
-
-# Запуск для Vercel
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=False)
+            "details": resp.text
+        }), resp.status_code
