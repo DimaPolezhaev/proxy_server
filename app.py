@@ -1,69 +1,61 @@
-# app.py
-from flask import Flask, request, jsonify, make_response
-import os
+from flask import Flask, request, jsonify
 import requests
+import os
 
 app = Flask(__name__)
 
-# Ключ и URL Gemini из переменных окружения
+# Используем переменную окружения для API-ключа
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
-def cors_response(payload, status=200):
-    """Обёртка для JSON-ответа с CORS-заголовками."""
-    resp = make_response(jsonify(payload), status)
-    resp.headers["Access-Control-Allow-Origin"] = "*"
-    resp.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
-    resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
-    return resp
-
-@app.route("/", methods=["GET", "OPTIONS"])
-def home():
-    if request.method == "OPTIONS":
-        return cors_response({})
-    return cors_response({"status": "✅ Gemini Proxy Server is running"})
-
-@app.route("/generate", methods=["POST", "OPTIONS"])
+@app.route("/generate", methods=["POST"])
 def generate():
-    # Обработка preflight
-    if request.method == "OPTIONS":
-        return cors_response({})
+    data = request.get_json()
+    user_prompt = data.get("prompt")
+    image_base64 = data.get("image_base64")  # Ожидаем base64 изображение
 
-    data = request.get_json(silent=True) or {}
-    prompt = data.get("prompt")
-    image_b64 = data.get("image_base64")
+    if not user_prompt or not image_base64:
+        return jsonify({"error": "Prompt or image not provided"}), 400
 
-    if not prompt or not image_b64:
-        return cors_response({"error": "Prompt or image not provided"}, 400)
-
-    # Подготовка тела для Gemini
-    gemini_payload = {
+    gemini_request = {
         "contents": [
             {
                 "parts": [
-                    {"text": prompt},
-                    {"inline_data": {"mime_type": "image/jpeg", "data": image_b64}}
+                    {"text": user_prompt},
+                    {
+                        "inline_data": {
+                            "mime_type": "image/jpeg",
+                            "data": image_base64
+                        }
+                    }
                 ],
                 "role": "user"
             }
         ]
     }
 
-    # Запрос к Gemini API
-    resp = requests.post(
+    response = requests.post(
         f"{GEMINI_URL}?key={GEMINI_API_KEY}",
         headers={"Content-Type": "application/json"},
-        json=gemini_payload,
-        timeout=30
+        json=gemini_request
     )
 
-    if resp.status_code == 200:
-        result = resp.json()
-        # Берём первый текстовый кусок из ответа
-        text = result["candidates"][0]["content"]["parts"][0]["text"]
-        return cors_response({"response": text})
+    if response.status_code == 200:
+        result = response.json()
+        return jsonify({
+            "response": result["candidates"][0]["content"]["parts"][0]["text"]
+        })
     else:
-        return cors_response({
+        return jsonify({
             "error": "Gemini API error",
-            "details": resp.text
-        }, resp.status_code)
+            "details": response.text
+        }), response.status_code
+
+@app.route("/", methods=["GET"])
+def home():
+    return "✅ Gemini Proxy Server is running"
+
+# Запуск для Vercel
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=False)
